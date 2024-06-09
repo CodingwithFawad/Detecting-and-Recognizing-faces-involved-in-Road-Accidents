@@ -1,0 +1,58 @@
+from deepface import DeepFace
+import cv2
+from google.colab.patches import cv2_imshow
+import os
+
+# Set the directory for the reference images
+directory_path = "/content/images/"
+
+# Get a list of all files and folders in the specified directory
+reference_directory = os.listdir(directory_path)
+
+# Ensure the directory exists
+os.makedirs(directory_path, exist_ok=True)
+
+# Load the image to compare
+image_to_compare = cv2.imread("/content/photo.jpg")
+
+# Create a Face Cascade Classifier
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Create an empty list to store loaded reference images
+loaded_reference_images = []
+
+# Load each reference image individually
+for item in reference_directory:
+    item_path = os.path.join(directory_path, item)
+    if os.path.isfile(item_path):
+        reference_image = cv2.imread(item_path)
+        loaded_reference_images.append((item, reference_image))
+
+# Initialize a flag indicating whether a match was found
+match_found = False
+
+# Perform face recognition for each reference image
+for item, reference_image in loaded_reference_images:
+    # Detect Faces in the image to compare
+    faces = face_cascade.detectMultiScale(image_to_compare, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+    # Draw Rectangles Around Detected Faces
+    for (x, y, w, h) in faces:
+        cv2.rectangle(image_to_compare, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    # Perform face recognition
+    result = DeepFace.verify(reference_image, image_to_compare)
+
+    # Check if the images match
+    if result['verified']:
+        print(f"Match found with {item}")
+        cv2.putText(image_to_compare, f'Match: {item}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        match_found = True
+        break  # Break after the first match if you only want to identify the first match
+
+# If no match is found, display "No match found" text
+if not match_found:
+    cv2.putText(image_to_compare, 'No match found', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+# Display the image with the result
+cv2_imshow(image_to_compare)
