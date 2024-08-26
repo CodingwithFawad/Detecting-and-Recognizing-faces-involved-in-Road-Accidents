@@ -1,0 +1,81 @@
+import gradio as gr
+import cv2
+import os
+from PIL import Image
+import numpy as np
+from deepface import DeepFace
+
+# Set the directory for the reference images
+directory_path = "/content/dataset/"
+
+# Ensure the directory exists
+os.makedirs(directory_path, exist_ok=True)
+
+# Load the reference images
+def load_reference_images(directory_path):
+    reference_directory = os.listdir(directory_path)
+    loaded_reference_images = []
+
+    for item in reference_directory:
+        item_path = os.path.join(directory_path, item)
+        if os.path.isfile(item_path):
+            reference_image = cv2.imread(item_path)
+            loaded_reference_images.append((item, reference_image))
+
+    return loaded_reference_images
+
+# Face recognition function
+def process_image(image):
+    # Convert PIL image to OpenCV format
+    image_to_compare = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+    # Load reference images
+    loaded_reference_images = load_reference_images(directory_path)
+
+    # Initialize face detector
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+    # Initialize match_found flag
+    match_found = False
+    match_text = "No match found"
+
+    # Perform face recognition for each reference image
+    for item, reference_image in loaded_reference_images:
+        # Detect Faces in the image to compare
+        faces = face_cascade.detectMultiScale(image_to_compare, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+        # Draw Rectangles Around Detected Faces
+        for (x, y, w, h) in faces:
+            cv2.rectangle(image_to_compare, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # Perform face recognition
+        result = DeepFace.verify(reference_image, image_to_compare)
+
+        # Check if the images match
+        if result['verified']:
+            match_text = f"Match found with {item}"
+            match_found = True
+            break  # Break after the first match if you only want to identify the first match
+
+    # Get image dimensions for placing text at the bottom
+    height, width, _ = image_to_compare.shape
+
+    # Add text at the bottom of the image
+    cv2.putText(image_to_compare, match_text, (10, height - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
+
+    # Convert back to PIL format for Gradio
+    processed_image = Image.fromarray(cv2.cvtColor(image_to_compare, cv2.COLOR_BGR2RGB))
+
+    return processed_image
+
+# Gradio Interface
+interface = gr.Interface(
+    fn=process_image,
+    inputs=gr.Image(type="pil"),
+    outputs=gr.Image(type="pil"),
+    title="Face Recognition Processor",
+    description="Upload an image to see if it matches any reference images.",
+)
+
+# Launch the Gradio app
+interface.launch()
